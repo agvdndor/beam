@@ -1,6 +1,34 @@
 {
   "pipelineSpec": {
     "components": {
+      "comp-beam-preprocessing": {
+        "executorLabel": "exec-beam-preprocessing",
+        "inputDefinitions": {
+          "artifacts": {
+            "ingested_dataset": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "train_test_split": {
+              "type": "DOUBLE"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "preprocessed_dataset": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
       "comp-dummy-ingest-data": {
         "executorLabel": "exec-dummy-ingest-data",
         "inputDefinitions": {
@@ -12,7 +40,13 @@
         },
         "outputDefinitions": {
           "artifacts": {
-            "data_ingestion_target_uri": {
+            "Output": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "ingested_dataset": {
               "artifactType": {
                 "schemaTitle": "system.Dataset",
                 "schemaVersion": "0.0.1"
@@ -24,6 +58,19 @@
     },
     "deploymentSpec": {
       "executors": {
+        "exec-beam-preprocessing": {
+          "container": {
+            "command": [
+              "python3",
+              "preprocessing.py",
+              "--ingested-dataset",
+              "{{$.inputs.artifacts['ingested_dataset'].path}}",
+              "--train-test-split",
+              "{{$.inputs.parameters['train_test_split']}}"
+            ],
+            "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest"
+          }
+        },
         "exec-dummy-ingest-data": {
           "container": {
             "args": [
@@ -39,7 +86,7 @@
               "sh",
               "-ec",
               "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
-              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef dummy_ingest_data(\n    data_ingestion_src_uri: str,\n    data_ingestion_target_uri: Output[Dataset]\n):\n    \"\"\"Dummy data ingestion step that returns an uri\n    to the data it has 'ingested' as jsonlines\n    https://www.kubeflow.org/docs/components/pipelines/sdk-v2/v2-component-io/.\n\n    Args:\n        data_ingestion_target (str): uri to the data that was scraped and \n        ingested by the component\"\"\"\n    # imports used by the lightweight kfp component must\n    # be imported inside the component definition\n    import json\n    import logging\n    logging.basicConfig(level=logging.INFO)\n    logger = logging.getLogger(\"INGESTION\")\n\n    with open(data_ingestion_src_uri, 'r') as input_file:\n        jsonlines = input_file.readlines()\n    logger.info(\"Done reading data from source uri %s\", data_ingestion_src_uri)\n\n    with open(data_ingestion_target_uri.path, 'w') as output_file:\n        output_file.writelines(\"\\n\".join(jsonlines))\n    logger.info(\"Done writing data to target uri %s\", data_ingestion_target_uri)\n\n"
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef dummy_ingest_data(\n    data_ingestion_src_uri: str,\n    ingested_dataset: Output[Dataset]\n) -> NamedTuple:\n    \"\"\"Dummy data ingestion step that returns an uri\n    to the data it has 'ingested' as jsonlines\n    https://www.kubeflow.org/docs/components/pipelines/sdk-v2/v2-component-io/.\n\n    Args:\n        data_ingestion_target (str): uri to the data that was scraped and \n        ingested by the component\"\"\"\n    # imports used by the lightweight kfp component must\n    # be imported inside the component definition\n    import logging\n    logging.basicConfig(level=logging.INFO)\n    logger = logging.getLogger(\"INGESTION\")\n\n    with open(data_ingestion_src_uri, 'r') as input_file:\n        jsonlines = input_file.readlines()\n    logger.info(\"Done reading data from source uri %s\", data_ingestion_src_uri)\n\n    with open(ingested_dataset.path, 'w') as output_file:\n        output_file.writelines(\"\\n\".join(jsonlines))\n    logger.info(\"Done writing data to target uri %s\", ingested_dataset.path)\n\n"
             ],
             "image": "python:3.8"
           }
@@ -52,6 +99,35 @@
     "root": {
       "dag": {
         "tasks": {
+          "beam-preprocessing": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-beam-preprocessing"
+            },
+            "dependentTasks": [
+              "dummy-ingest-data"
+            ],
+            "inputs": {
+              "artifacts": {
+                "ingested_dataset": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "ingested_dataset",
+                    "producerTask": "dummy-ingest-data"
+                  }
+                }
+              },
+              "parameters": {
+                "train_test_split": {
+                  "componentInputParameter": "train_test_split"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "beam-preprocessing"
+            }
+          },
           "dummy-ingest-data": {
             "cachingOptions": {
               "enableCache": true

@@ -1,9 +1,12 @@
+from asyncio.log import logger
 import json
 import urllib
 import io
 import re
 import requests
 from typing import Dict, Union
+import argparse
+import logging
 
 import torch
 import torchvision.transforms as T
@@ -12,6 +15,8 @@ from PIL import Image, UnidentifiedImageError
 import numpy as np
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
+from kfp.v2.dsl import component, Dataset, Output, OutputPath, InputPath, Input
+
 
 LOGIT_LAPLACE_EPS = 0.1
 
@@ -20,6 +25,27 @@ BUCKET_URI = "apache-beam-testing-ml-examples"
 LOCATION = "us-central1"
 STAGING_DIR = "gs://apache-beam-testing-ml-examples/dataflow_staging"
 
+logging.basicConfig(level=logging.INFO)
+LOGGER = logging.getLogger("PREPROCESSING")
+
+
+def parse_args():
+    """Parse component arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ingested-dataset',
+                        type=Input[Dataset],
+                        required=True,
+                        help='ingested dataset in jsonlines format')
+    parser.add_argument('--train-test-split',
+                        type=float,
+                        required=True,
+                        help='The percentage of training split of the dataset')
+    # parser.add_argument('--preprocessed-dataset',
+    #                     type=Output[Dataset],
+    #                     required=True,
+    #                     help='Preprocessed dataset in avro format')
+
+    return parser.parse_args()
 
 class DownloadImageFromURL(beam.DoFn):
     """DoFn to download the images from their uri."""
@@ -81,7 +107,11 @@ class SerializeExample(beam.DoFn):
         return [element]
 
 
-def run_pipeline():
+def run_pipeline(ingested_dataset: Input[Dataset], train_test_split: float,
+                 preprocessed_dataset: Output[Dataset]):
+    LOGGER.info("ingested_dataset: %s", ingested_dataset.uri)
+    LOGGER.info("train_test_split: %s", train_test_split)
+    LOGGER.info("preprocessed_dataset: %s", preprocessed_dataset.uri)
 
     beam_options = PipelineOptions(
         runner='DataflowRunner',
@@ -91,7 +121,7 @@ def run_pipeline():
         region=LOCATION
     )
     
-    input_files = "./*.jsonl"
+    input_files = ingested_dataset.uri
     with beam.Pipeline() as pipeline:
         (
             pipeline
@@ -119,4 +149,5 @@ def run_pipeline():
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    args = vars(parse_args())
+    run_pipeline(args=args)

@@ -1,0 +1,25 @@
+name: beam_preprocessing
+description: Component that reads dataset from json lines and outputs a preprocessed avro dataset
+inputs:
+    - name: ingested_dataset
+      description: jsonlines file with ingested data
+      type: Dataset
+    - name: train_test_split
+      description: dataset fractional split between train and test set
+      type: Float
+outputs:
+    - name: preprocessed_dataset
+      description: Preprocessed dataset in Avro format
+      type: Dataset
+implementation:
+    container:
+        image: us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest
+        command: [
+          python3, 
+          # Path of the program inside the container
+          preprocessing.py,
+          --ingested-dataset,
+          {inputPath: ingested_dataset},
+          --train-test-split,
+          {inputValue: train_test_split}
+        ]

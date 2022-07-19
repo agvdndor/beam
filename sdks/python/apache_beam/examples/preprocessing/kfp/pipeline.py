@@ -3,6 +3,7 @@ import logging
 import argparse
 
 import kfp
+from kfp import components as comp
 from kfp.v2 import dsl
 from kfp.v2.dsl import (Artifact, Dataset, Input, Output)
 from kfp.v2.compiler import Compiler
@@ -15,6 +16,8 @@ PIPELINE_ROOT = "gs://apache-beam-testing-ml-examples/pipelines"
 logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
+preprocess_data_op = comp.load_component(
+    'preprocessing/component.yaml')
 
 def parse_args():
     """Parse KFP arguments"""
@@ -41,8 +44,13 @@ def full_pipeline(
     preprocessed_dataset_output_uri: str,
     train_test_split: float
 ):
-    dummy_ingest_data(
+    ingest_data_task = dummy_ingest_data(
         data_ingestion_src_uri=data_ingestion_target_uri
+    )
+
+    preprocess_data_task = preprocess_data_op(
+        ingested_dataset=ingest_data_task.outputs['ingested_dataset'],
+        train_test_split=train_test_split
     )
 
 
