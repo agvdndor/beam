@@ -1,0 +1,95 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-dummy-ingest-data": {
+        "executorLabel": "exec-dummy-ingest-data",
+        "inputDefinitions": {
+          "parameters": {
+            "data_ingestion_target_uri": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "data_uri": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-dummy-ingest-data": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "dummy_ingest_data"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.11' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef dummy_ingest_data(\n    data_ingestion_target_uri: str\n) -> NamedTuple(\n    \"Outputs\",\n    [\n        (\"data_uri\", Output[Dataset])\n    ]\n):\n    \"\"\"Dummy data ingestion step that returns an uri\n    to the data it has 'ingested' as jsonlines.\n\n    Args:\n        data_ingestion_target_uri (str): uri to the data that was scraped and \n        ingested by the component\"\"\"\n    # imports used by the lightweight kfp component must\n    # be imported inside the component definition\n    import logging\n    logging.basicConfig(level=logging.INFO)\n    logger = logging.getLogger(\"INGESTION\")\n\n    # TODO replace with actual data ingestion\n    logger.info(\"Done ingesting data to %s\", data_ingestion_target_uri)\n\n    return data_ingestion_target_uri\n\n"
+            ],
+            "image": "python:3.8"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "beam-preprocessing-kfp-example"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "dummy-ingest-data": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-dummy-ingest-data"
+            },
+            "inputs": {
+              "parameters": {
+                "data_ingestion_target_uri": {
+                  "componentInputParameter": "data_ingestion_target_uri"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "dummy-ingest-data"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "data_ingestion_target_uri": {
+            "type": "STRING"
+          },
+          "preprocessed_dataset_output_uri": {
+            "type": "STRING"
+          },
+          "train_test_split": {
+            "type": "DOUBLE"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.11"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "gs://apache-beam-testing-ml-examples/pipelines"
+  }
+}
