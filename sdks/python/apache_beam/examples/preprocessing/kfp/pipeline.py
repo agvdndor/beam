@@ -42,7 +42,7 @@ def full_pipeline(
     train_test_split: float
 ):
     dummy_ingest_data(
-        data_ingestion_target_uri=data_ingestion_target_uri
+        data_ingestion_src_uri=data_ingestion_target_uri
     )
 
 

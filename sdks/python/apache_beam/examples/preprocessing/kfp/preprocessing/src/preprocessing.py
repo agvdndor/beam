@@ -8,14 +8,17 @@ from typing import Dict, Union
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
-import torchvision.io as TI
-
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import apache_beam as beam
-from apache_beam.io.avroio import WriteToAvro
+from apache_beam.options.pipeline_options import PipelineOptions
 
 LOGIT_LAPLACE_EPS = 0.1
+
+PROJECT_ID = "apache-beam-testing"
+BUCKET_URI = "apache-beam-testing-ml-examples"
+LOCATION = "us-central1"
+STAGING_DIR = "gs://apache-beam-testing-ml-examples/dataflow_staging"
 
 
 class DownloadImageFromURL(beam.DoFn):
@@ -47,7 +50,7 @@ class CleanText(beam.DoFn):
         text = re.sub("\s+", " ", text)  # remove extra spaces (including \n and \t)
         text = re.sub("[()[\].,|:;?!=+~\-\/{}]", ",", text)  # all puncutation are replace w commas
         text = f" {text}"  # always start with a space
-        text = text.strip()  #  remove commas at the start or end of the caption
+        text = text.strip(',')  #  remove commas at the start or end of the caption
         text = text[:-1] if text and text[-1] == "," else text
         text = text[1:] if text and text[0] == "," else text
 
@@ -79,6 +82,15 @@ class SerializeExample(beam.DoFn):
 
 
 def run_pipeline():
+
+    beam_options = PipelineOptions(
+        runner='DataflowRunner',
+        project=PROJECT_ID,
+        job_name='preprocessing-test',
+        temp_location=STAGING_DIR,
+        region=LOCATION
+    )
+    
     input_files = "./*.jsonl"
     with beam.Pipeline() as pipeline:
         (
@@ -92,16 +104,16 @@ def run_pipeline():
             | "Rescale the image pixel distribution" >> beam.ParDo(RescaleImagePixelValues())
             | "Clean Text" >> beam.ParDo(CleanText())
             | "Serialize Example" >> beam.ParDo(SerializeExample())
-            | "Write to Avro files" >> WriteToAvro(file_path_prefix="./coco_preprocessed",
-                                                   schema={"namespace": "preprocessing.example",
-                                                           "type": "record",
-                                                           "name": "Sample",
-                                                           "fields": [
-                                                                {"name": "id", "type": "int"},
-                                                                {"name": "caption", "type": "string"},
-                                                                {"name": "image", "type": "bytes"}
-                                                            ]},
-                                                   file_name_suffix=".avro")
+            | "Write to Avro files" >> beam.io.WriteToAvro(file_path_prefix="./coco_preprocessed",
+                                                           schema={"namespace": "preprocessing.example",
+                                                                   "type": "record",
+                                                                   "name": "Sample",
+                                                                   "fields": [
+                                                                           {"name": "id", "type": "int"},
+                                                                           {"name": "caption", "type": "string"},
+                                                                           {"name": "image", "type": "bytes"}
+                                                                       ]},
+                                                           file_name_suffix=".avro")
             # | "print" >> beam.Map(print)
         )
 
