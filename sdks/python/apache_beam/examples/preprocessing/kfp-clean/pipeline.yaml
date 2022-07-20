@@ -1,0 +1,94 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: beam-preprocessing-kfp-example-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2022-07-20T17:25:05.346757',
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline to show an apache
+      beam preprocessing example in KFP", "inputs": [{"name": "data_source_uri", "type":
+      "String"}, {"name": "train_test_split", "type": "Float"}, {"default": "gs://apache-beam-testing-ml-examples/pipelines",
+      "name": "pipeline-root"}], "name": "beam-preprocessing-kfp-example"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13}
+spec:
+  entrypoint: beam-preprocessing-kfp-example
+  templates:
+  - name: beam-preprocessing-kfp-example
+    inputs:
+      artifacts:
+      - {name: data_source_uri}
+    dag:
+      tasks:
+      - name: dummy-data-ingestion
+        template: dummy-data-ingestion
+        arguments:
+          artifacts:
+          - {name: data_source_uri, from: '{{inputs.artifacts.data_source_uri}}'}
+      - name: dummy-data-ingestion-2
+        template: dummy-data-ingestion-2
+        dependencies: [dummy-data-ingestion]
+        arguments:
+          artifacts:
+          - {name: dummy-data-ingestion-ingested_dataset_uri, from: '{{tasks.dummy-data-ingestion.outputs.artifacts.dummy-data-ingestion-ingested_dataset_uri}}'}
+  - name: dummy-data-ingestion
+    container:
+      args: []
+      command: [python3, ingest.py, --data-source-uri, /tmp/inputs/data_source_uri/data,
+        --ingested-dataset-uri, /tmp/outputs/ingested_dataset_uri/data]
+      image: docker pull us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/ingestion:latest
+    inputs:
+      artifacts:
+      - {name: data_source_uri, path: /tmp/inputs/data_source_uri/data}
+    outputs:
+      artifacts:
+      - {name: dummy-data-ingestion-ingested_dataset_uri, path: /tmp/outputs/ingested_dataset_uri/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Component
+          that mimicks scraping data from the web and outputs it to a jsonlines format
+          file", "implementation": {"container": {"command": ["python3", "ingest.py",
+          "--data-source-uri", {"inputPath": "data_source_uri"}, "--ingested-dataset-uri",
+          {"outputPath": "ingested_dataset_uri"}], "image": "docker pull us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/ingestion:latest"}},
+          "inputs": [{"description": "source uri of the data to scrape", "name": "data_source_uri",
+          "type": "String"}], "name": "dummy data ingestion", "outputs": [{"description":
+          "target uri for the ingested dataset", "name": "ingested_dataset_uri", "type":
+          "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest": "f08f2c271034b887150e47be509816f056ef85838211cc800e4abbb58717ac2d",
+          "url": "components/ingestion/component.yaml"}'}
+  - name: dummy-data-ingestion-2
+    container:
+      args: []
+      command: [python3, preprocess.py, --ingested-dataset-uri, /tmp/inputs/ingested_dataset_uri/data,
+        --preprocessed-dataset-uri, /tmp/outputs/preprocessed_dataset_uri/data]
+      image: docker pull us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest
+    inputs:
+      artifacts:
+      - {name: dummy-data-ingestion-ingested_dataset_uri, path: /tmp/inputs/ingested_dataset_uri/data}
+    outputs:
+      artifacts:
+      - {name: dummy-data-ingestion-2-preprocessed_dataset_uri, path: /tmp/outputs/preprocessed_dataset_uri/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "Component
+          that mimicks scraping data from the web and outputs it to a jsonlines format
+          file", "implementation": {"container": {"command": ["python3", "preprocess.py",
+          "--ingested-dataset-uri", {"inputPath": "ingested_dataset_uri"}, "--preprocessed-dataset-uri",
+          {"outputPath": "preprocessed_dataset_uri"}], "image": "docker pull us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest"}},
+          "inputs": [{"description": "source uri of the data to scrape", "name": "ingested_dataset_uri",
+          "type": "String"}], "name": "dummy data ingestion", "outputs": [{"description":
+          "target uri for the ingested dataset", "name": "preprocessed_dataset_uri",
+          "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "4026a4f947286d6074fa78ece45ac02fbfb875a7112f5ae641b1a49ad70c4401", "url":
+          "components/preprocessing/component.yaml"}'}
+  arguments:
+    parameters:
+    - {name: data_source_uri}
+    - {name: train_test_split}
+    - {name: pipeline-root, value: 'gs://apache-beam-testing-ml-examples/pipelines'}
+    artifacts:
+    - name: data_source_uri
+      raw: {data: '{{workflow.parameters.data_source_uri}}'}
+  serviceAccountName: pipeline-runner
