@@ -1,0 +1,155 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-dummy-data-ingestion": {
+        "executorLabel": "exec-dummy-data-ingestion",
+        "inputDefinitions": {
+          "parameters": {
+            "data_source_uri": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "ingested_dataset": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-dummy-data-preprocessing": {
+        "executorLabel": "exec-dummy-data-preprocessing",
+        "inputDefinitions": {
+          "artifacts": {
+            "ingested_dataset": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "preprocessed_dataset": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-dummy-data-ingestion": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "dummy_ingest_data"
+            ],
+            "command": [
+              "python3",
+              "-m",
+              "kfp.v2.components.executor_main",
+              "--component_module_path",
+              "ingest.py"
+            ],
+            "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/ingestion:latest"
+          }
+        },
+        "exec-dummy-data-preprocessing": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "preprocess_dataset"
+            ],
+            "command": [
+              "python3",
+              "-m",
+              "kfp.v2.components.executor_main",
+              "--component_module_path",
+              "src/preprocess.py"
+            ],
+            "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "beam-preprocessing-kfp-example"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "dummy-data-ingestion": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-dummy-data-ingestion"
+            },
+            "inputs": {
+              "parameters": {
+                "data_source_uri": {
+                  "componentInputParameter": "data_source_uri"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "dummy-data-ingestion"
+            }
+          },
+          "dummy-data-preprocessing": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-dummy-data-preprocessing"
+            },
+            "dependentTasks": [
+              "dummy-data-ingestion"
+            ],
+            "inputs": {
+              "artifacts": {
+                "ingested_dataset": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "ingested_dataset",
+                    "producerTask": "dummy-data-ingestion"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "dummy-data-preprocessing"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "data_source_uri": {
+            "type": "STRING"
+          },
+          "train_test_split": {
+            "type": "DOUBLE"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.13"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "gs://apache-beam-testing-ml-examples/pipelines"
+  }
+}
