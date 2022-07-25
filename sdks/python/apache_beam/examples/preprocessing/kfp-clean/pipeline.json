@@ -5,18 +5,18 @@
         "executorLabel": "exec-dummy-data-ingestion",
         "inputDefinitions": {
           "parameters": {
-            "data_source_uri": {
+            "base_data_path": {
               "type": "STRING"
+            },
+            "timestamp": {
+              "type": "INT"
             }
           }
         },
         "outputDefinitions": {
-          "artifacts": {
-            "ingested_dataset": {
-              "artifactType": {
-                "schemaTitle": "system.Dataset",
-                "schemaVersion": "0.0.1"
-              }
+          "parameters": {
+            "ingested_dataset_path": {
+              "type": "STRING"
             }
           }
         }
@@ -24,22 +24,32 @@
       "comp-dummy-data-preprocessing": {
         "executorLabel": "exec-dummy-data-preprocessing",
         "inputDefinitions": {
-          "artifacts": {
-            "ingested_dataset": {
-              "artifactType": {
-                "schemaTitle": "system.Dataset",
-                "schemaVersion": "0.0.1"
-              }
+          "parameters": {
+            "base_data_path": {
+              "type": "STRING"
+            },
+            "ingested_dataset_path": {
+              "type": "STRING"
+            },
+            "timestamp": {
+              "type": "INT"
             }
           }
         },
         "outputDefinitions": {
-          "artifacts": {
-            "preprocessed_dataset": {
-              "artifactType": {
-                "schemaTitle": "system.Dataset",
-                "schemaVersion": "0.0.1"
-              }
+          "parameters": {
+            "preprocessed_dataset_path": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-generate-timestamp": {
+        "executorLabel": "exec-generate-timestamp",
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "INT"
             }
           }
         }
@@ -49,38 +59,49 @@
       "executors": {
         "exec-dummy-data-ingestion": {
           "container": {
-            "args": [
-              "--executor_input",
-              "{{$}}",
-              "--function_to_execute",
-              "dummy_ingest_data"
-            ],
             "command": [
               "python3",
-              "-m",
-              "kfp.v2.components.executor_main",
-              "--component_module_path",
-              "ingest.py"
+              "ingest.py",
+              "--base-data-path",
+              "{{$.inputs.parameters['base_data_path']}}",
+              "--timestamp",
+              "{{$.inputs.parameters['timestamp']}}",
+              "--ingested-dataset-path",
+              "{{$.outputs.parameters['ingested_dataset_path'].output_file}}"
             ],
             "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/ingestion:latest"
           }
         },
         "exec-dummy-data-preprocessing": {
           "container": {
-            "args": [
-              "--executor_input",
-              "{{$}}",
-              "--function_to_execute",
-              "preprocess_dataset"
-            ],
             "command": [
               "python3",
-              "-m",
-              "kfp.v2.components.executor_main",
-              "--component_module_path",
-              "src/preprocess.py"
+              "preprocess.py",
+              "--ingested-dataset-path",
+              "{{$.inputs.parameters['ingested_dataset_path']}}",
+              "--timestamp",
+              "{{$.inputs.parameters['timestamp']}}",
+              "--base-data-path",
+              "{{$.inputs.parameters['base_data_path']}}",
+              "--preprocessed-dataset-path",
+              "{{$.outputs.parameters['preprocessed_dataset_path'].output_file}}"
             ],
             "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest"
+          }
+        },
+        "exec-generate-timestamp": {
+          "container": {
+            "args": [
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def generate_timestamp():\n    import time\n    return int(time.time())\n\ndef _serialize_int(int_value: int) -> str:\n    if isinstance(int_value, str):\n        return int_value\n    if not isinstance(int_value, int):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of int.'.format(\n            str(int_value), str(type(int_value))))\n    return str(int_value)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Generate timestamp', description='')\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = generate_timestamp(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_int,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.8-slim"
           }
         }
       }
@@ -98,10 +119,23 @@
             "componentRef": {
               "name": "comp-dummy-data-ingestion"
             },
+            "dependentTasks": [
+              "generate-timestamp"
+            ],
             "inputs": {
               "parameters": {
-                "data_source_uri": {
-                  "componentInputParameter": "data_source_uri"
+                "base_data_path": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"
+                    }
+                  }
+                },
+                "timestamp": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "generate-timestamp"
+                  }
                 }
               }
             },
@@ -117,14 +151,28 @@
               "name": "comp-dummy-data-preprocessing"
             },
             "dependentTasks": [
-              "dummy-data-ingestion"
+              "dummy-data-ingestion",
+              "generate-timestamp"
             ],
             "inputs": {
-              "artifacts": {
-                "ingested_dataset": {
-                  "taskOutputArtifact": {
-                    "outputArtifactKey": "ingested_dataset",
+              "parameters": {
+                "base_data_path": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"
+                    }
+                  }
+                },
+                "ingested_dataset_path": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "ingested_dataset_path",
                     "producerTask": "dummy-data-ingestion"
+                  }
+                },
+                "timestamp": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "generate-timestamp"
                   }
                 }
               }
@@ -132,16 +180,17 @@
             "taskInfo": {
               "name": "dummy-data-preprocessing"
             }
-          }
-        }
-      },
-      "inputDefinitions": {
-        "parameters": {
-          "data_source_uri": {
-            "type": "STRING"
           },
-          "train_test_split": {
-            "type": "DOUBLE"
+          "generate-timestamp": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-generate-timestamp"
+            },
+            "taskInfo": {
+              "name": "generate-timestamp"
+            }
           }
         }
       }

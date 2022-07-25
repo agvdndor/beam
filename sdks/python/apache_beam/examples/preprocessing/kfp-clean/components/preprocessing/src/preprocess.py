@@ -6,9 +6,9 @@ import json
 import io
 import argparse
 import time
+from pathlib import Path
 
 import requests
-from yaml import parse
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
@@ -16,7 +16,6 @@ from PIL import Image, UnidentifiedImageError
 import numpy as np
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
-from kfp.v2.dsl import component, Dataset, Output, OutputPath, InputPath, Input
 
 LOGIT_LAPLACE_EPS = 0.1
 PROJECT_ID = "apache-beam-testing"
@@ -32,17 +31,26 @@ def parse_args():
     """Parse preprocessing arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--ingested-dataset", type=Input[Dataset],
+        "--ingested-dataset-path", type=str,
         help="Source uri to ingest data from.")
     parser.add_argument(
-        "--preprocessed-dataset", type=Output[Dataset],
+        "--preprocessed-dataset-path", type=str,
         help="The target directory for the ingested dataset.")
+    parser.add_argument(
+        "--timestamp", type=str,
+        help="timestamp as identifier for the pipeline.")
+    parser.add_argument(
+        "--base-data-path", type=str,
+        help="Source uri to ingest data from.")
+    return parser.parse_args()
     return parser.parse_args()
 
 
 def preprocess_dataset(
-    ingested_dataset: Input[Dataset],
-    preprocessed_dataset: Output[Dataset]):
+    ingested_dataset_path: str,
+    preprocessed_dataset_path: str,
+    timestamp: int,
+    base_data_path: str):
     """Dummy data ingestion step that returns an uri
     to the data it has 'ingested' as jsonlines.
 
@@ -50,8 +58,12 @@ def preprocess_dataset(
         data_ingestion_target (str): uri to the data that was scraped and 
         ingested by the component"""
 
-    logger.info("ingested-dataset-uri %s", ingested_dataset.uri)
-    logger.info("preprocessed-dataset-uri %s", preprocessed_dataset.uri)
+    # the directory where the output file is created may or may not exists
+    # so we have to create it.
+    Path(preprocessed_dataset_path).parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info("ingested-dataset-uri %s", ingested_dataset_path)
+    logger.info("preprocessed-dataset-uri %s", preprocessed_dataset_path)
 
     # We use the save_main_session option because one or more DoFn's in this
     # workflow rely on global context (e.g., a module imported at module level).
@@ -64,14 +76,14 @@ def preprocess_dataset(
         requirements_file="/requirements.txt",
         save_main_session = True,
         experiments = ["use_runner_v2"],
-        setup_file="/setup.py"
     )
 
-    input_files = ingested_dataset.uri
+    target_path = f"{base_data_path}/preprocessing/preprocessed_dataset_{timestamp}"
+
     with beam.Pipeline(options=pipeline_options) as pipeline:
         (
             pipeline
-            | "Read input jsonl file" >> beam.io.ReadFromText(input_files)
+            | "Read input jsonl file" >> beam.io.ReadFromText(ingested_dataset_path)
             | "Load json" >> beam.Map(json.loads)
             | "Filter licenses" >> beam.Filter(valid_license)
             | "Download image from URL" >> beam.ParDo(DownloadImageFromURL())
@@ -80,7 +92,7 @@ def preprocess_dataset(
             | "Rescale the image pixel distribution" >> beam.ParDo(RescaleImagePixelValues())
             | "Clean Text" >> beam.ParDo(CleanText())
             | "Serialize Example" >> beam.ParDo(SerializeExample())
-            | "Write to Avro files" >> beam.io.WriteToAvro(file_path_prefix=preprocessed_dataset.uri,
+            | "Write to Avro files" >> beam.io.WriteToAvro(file_path_prefix=target_path,
                                                            schema={"namespace": "preprocessing.example",
                                                                    "type": "record",
                                                                    "name": "Sample",
@@ -90,8 +102,13 @@ def preprocess_dataset(
                                                                            {"name": "image", "type": "bytes"}
                                                                        ]},
                                                            file_name_suffix=".avro")
-            # | "print" >> beam.Map(print)
         )
+
+    # the directory where the output file is created may or may not exists
+    # so we have to create it.
+    Path(preprocessed_dataset_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(preprocessed_dataset_path, 'w') as f:
+        f.write(Path(target_path).parent)
 
 
 class DownloadImageFromURL(beam.DoFn):

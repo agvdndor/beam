@@ -1,24 +1,31 @@
 name: dummy data preprocessing
 description: Component that mimicks scraping data from the web and outputs it to a jsonlines format file
 inputs:
-    - name: ingested_dataset
+    - name: ingested_dataset_path
       description: source uri of the data to scrape
-      type: Dataset
+      type: String
+    - name: timestamp
+      description: timestamp as id for the pipeline
+      type: Integer
+    - name: base_data_path
+      description: base path to store data
+      type: String
 outputs:
-    - name: preprocessed_dataset
+    - name: preprocessed_dataset_path
       description: target uri for the ingested dataset
-      type: Dataset
+      type: String
 implementation:
     container:
         image: us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest
-        command:
-          - python3
-          - -m
-          - kfp.v2.components.executor_main
-          - --component_module_path
-          - src/preprocess.py
-        args:
-          - --executor_input
-          - executorInput: null
-          - --function_to_execute
-          - preprocess_dataset
+        command: [
+            python3,
+            preprocess.py,
+            --ingested-dataset-path,
+            {inputValue: ingested_dataset_path},
+            --timestamp,
+            {inputValue: timestamp},
+            --base-data-path,
+            {inputValue: base_data_path},
+            --preprocessed-dataset-path,
+            {outputPath: preprocessed_dataset_path}
+        ]

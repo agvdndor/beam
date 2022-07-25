@@ -9,5 +9,4 @@ RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # copy src files and set working directory
 COPY src /src
-COPY setup.py /setup.py
-WORKDIR /
+WORKDIR /src

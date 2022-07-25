@@ -1,25 +1,26 @@
 name: dummy data ingestion
 description: Component that mimicks scraping data from the web and outputs it to a jsonlines format file
 inputs:
-    - name: data_source_uri
-      description: source uri of the data to scrape
+    - name: base_data_path
+      description: base path to store data
       type: String
+    - name: timestamp
+      description: timestamp as id for the pipeline
+      type: Integer
 outputs:
-    - name: ingested_dataset
+    - name: ingested_dataset_path
       description: target uri for the ingested dataset
-      type: Dataset
+      type: String
 implementation:
     container:
         image: us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/ingestion:latest
-        command:
-          - python3
-          - -m
-          - kfp.v2.components.executor_main
-          - --component_module_path
-          - ingest.py
-        args:
-          - --executor_input
-          - executorInput: null
-          - --function_to_execute
-          - dummy_ingest_data
-        
+        command: [
+            python3,
+            ingest.py,
+            --base-data-path,
+            {inputValue: base_data_path},
+            --timestamp,
+            {inputValue: timestamp},
+            --ingested-dataset-path,
+            {outputPath: ingested_dataset_path}
+        ]
