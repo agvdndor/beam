@@ -7,11 +7,8 @@ inputs:
     - name: preprocessed_dataset_path
       description: path to the preprocessed dataset
       type: String
-    - name: timestamp
-      description: timestamp as id for the pipeline
-      type: Integer
 outputs:
-    - name: trained_model
+    - name: trained_model_path
       description: trained model file
       type: String
 implementation:
@@ -19,11 +16,11 @@ implementation:
         image: us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/train:latest
         command: [
             python3,
-            ingest.py,
+            train.py,
+            --preprocessed-dataset-path,
+            {inputValue: preprocessed_dataset_path},
             --base-artifact-path,
             {inputValue: base_artifact_path},
-            --timestamp,
-            {inputValue: timestamp},
-            --preprocessed-dataset-path,
-            {outputPath: preprocessed_dataset_path}
+            --trained-model-path,
+            {outputPath: trained_model_path}
         ]

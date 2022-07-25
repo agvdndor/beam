@@ -6,20 +6,15 @@ from kfp.v2 import dsl
 from kfp.v2.compiler import Compiler
 
 
-def generate_timestamp() -> int:
-    import time
-    return int(time.time())
-
-GenerateTimeStampOp = comp.func_to_container_op(
-    generate_timestamp,
-    base_image="python:3.8-slim"
-)
-
 DataIngestOp = comp.load_component(
     'components/ingestion/component.yaml'
 )
 DataPreprocessingOp = comp.load_component(
     'components/preprocessing/component.yaml'
+)
+
+TrainModelOp = comp.load_component(
+    'components/train/component.yaml'
 )
 
 PIPELINE_ROOT = "gs://apache-beam-testing-ml-examples/pipelines"
@@ -39,20 +34,20 @@ BASE_ARTIFACT_PATH = "gs://apache-beam-testing-ml-examples/kfp-example"
     name="beam-preprocessing-kfp-example",
     description="Pipeline to show an apache beam preprocessing example in KFP"
 )
-def pipeline(base_artifact_path: str):
-    timestamp_generator_task = GenerateTimeStampOp()
+def pipeline(base_artifact_path: str = BASE_ARTIFACT_PATH):
 
     ingest_data_task = DataIngestOp(
-        timestamp=timestamp_generator_task.output,
         base_artifact_path=base_artifact_path
     )
     data_preprocessing_task = DataPreprocessingOp(
         ingested_dataset_path=ingest_data_task.outputs["ingested_dataset_path"],
-        timestamp=timestamp_generator_task.output,
         base_artifact_path=base_artifact_path
     )
 
-
+    train_model_task = TrainModelOp(
+        preprocessed_dataset_path=data_preprocessing_task.outputs["preprocessed_dataset_path"],
+        base_artifact_path=base_artifact_path
+    )
 
 if __name__ == "__main__":
     Compiler().compile(

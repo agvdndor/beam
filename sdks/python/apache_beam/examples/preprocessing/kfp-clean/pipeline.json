@@ -7,9 +7,6 @@
           "parameters": {
             "base_artifact_path": {
               "type": "STRING"
-            },
-            "timestamp": {
-              "type": "INT"
             }
           }
         },
@@ -30,9 +27,6 @@
             },
             "ingested_dataset_path": {
               "type": "STRING"
-            },
-            "timestamp": {
-              "type": "INT"
             }
           }
         },
@@ -44,12 +38,22 @@
           }
         }
       },
-      "comp-generate-timestamp": {
-        "executorLabel": "exec-generate-timestamp",
+      "comp-model-training": {
+        "executorLabel": "exec-model-training",
+        "inputDefinitions": {
+          "parameters": {
+            "base_artifact_path": {
+              "type": "STRING"
+            },
+            "preprocessed_dataset_path": {
+              "type": "STRING"
+            }
+          }
+        },
         "outputDefinitions": {
           "parameters": {
-            "Output": {
-              "type": "INT"
+            "trained_model_path": {
+              "type": "STRING"
             }
           }
         }
@@ -64,8 +68,6 @@
               "ingest.py",
               "--base-artifact-path",
               "{{$.inputs.parameters['base_artifact_path']}}",
-              "--timestamp",
-              "{{$.inputs.parameters['timestamp']}}",
               "--ingested-dataset-path",
               "{{$.outputs.parameters['ingested_dataset_path'].output_file}}"
             ],
@@ -79,8 +81,6 @@
               "preprocess.py",
               "--ingested-dataset-path",
               "{{$.inputs.parameters['ingested_dataset_path']}}",
-              "--timestamp",
-              "{{$.inputs.parameters['timestamp']}}",
               "--base-artifact-path",
               "{{$.inputs.parameters['base_artifact_path']}}",
               "--preprocessed-dataset-path",
@@ -89,19 +89,19 @@
             "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/preprocessing:latest"
           }
         },
-        "exec-generate-timestamp": {
+        "exec-model-training": {
           "container": {
-            "args": [
-              "----output-paths",
-              "{{$.outputs.parameters['Output'].output_file}}"
-            ],
             "command": [
-              "sh",
-              "-ec",
-              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
-              "def generate_timestamp():\n    import time\n    return int(time.time())\n\ndef _serialize_int(int_value: int) -> str:\n    if isinstance(int_value, str):\n        return int_value\n    if not isinstance(int_value, int):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of int.'.format(\n            str(int_value), str(type(int_value))))\n    return str(int_value)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Generate timestamp', description='')\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = generate_timestamp(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_int,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+              "python3",
+              "train.py",
+              "--preprocessed-dataset-path",
+              "{{$.inputs.parameters['preprocessed_dataset_path']}}",
+              "--base-artifact-path",
+              "{{$.inputs.parameters['base_artifact_path']}}",
+              "--trained-model-path",
+              "{{$.outputs.parameters['trained_model_path'].output_file}}"
             ],
-            "image": "python:3.8-slim"
+            "image": "us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/train:latest"
           }
         }
       }
@@ -119,23 +119,10 @@
             "componentRef": {
               "name": "comp-dummy-data-ingestion"
             },
-            "dependentTasks": [
-              "generate-timestamp"
-            ],
             "inputs": {
               "parameters": {
                 "base_artifact_path": {
-                  "runtimeValue": {
-                    "constantValue": {
-                      "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"
-                    }
-                  }
-                },
-                "timestamp": {
-                  "taskOutputParameter": {
-                    "outputParameterKey": "Output",
-                    "producerTask": "generate-timestamp"
-                  }
+                  "componentInputParameter": "base_artifact_path"
                 }
               }
             },
@@ -151,28 +138,17 @@
               "name": "comp-dummy-data-preprocessing"
             },
             "dependentTasks": [
-              "dummy-data-ingestion",
-              "generate-timestamp"
+              "dummy-data-ingestion"
             ],
             "inputs": {
               "parameters": {
                 "base_artifact_path": {
-                  "runtimeValue": {
-                    "constantValue": {
-                      "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"
-                    }
-                  }
+                  "componentInputParameter": "base_artifact_path"
                 },
                 "ingested_dataset_path": {
                   "taskOutputParameter": {
                     "outputParameterKey": "ingested_dataset_path",
                     "producerTask": "dummy-data-ingestion"
-                  }
-                },
-                "timestamp": {
-                  "taskOutputParameter": {
-                    "outputParameterKey": "Output",
-                    "producerTask": "generate-timestamp"
                   }
                 }
               }
@@ -181,16 +157,39 @@
               "name": "dummy-data-preprocessing"
             }
           },
-          "generate-timestamp": {
+          "model-training": {
             "cachingOptions": {
               "enableCache": true
             },
             "componentRef": {
-              "name": "comp-generate-timestamp"
+              "name": "comp-model-training"
+            },
+            "dependentTasks": [
+              "dummy-data-preprocessing"
+            ],
+            "inputs": {
+              "parameters": {
+                "base_artifact_path": {
+                  "componentInputParameter": "base_artifact_path"
+                },
+                "preprocessed_dataset_path": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "preprocessed_dataset_path",
+                    "producerTask": "dummy-data-preprocessing"
+                  }
+                }
+              }
             },
             "taskInfo": {
-              "name": "generate-timestamp"
+              "name": "model-training"
             }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "base_artifact_path": {
+            "type": "STRING"
           }
         }
       }
@@ -199,6 +198,11 @@
     "sdkVersion": "kfp-1.8.13"
   },
   "runtimeConfig": {
-    "gcsOutputDirectory": "gs://apache-beam-testing-ml-examples/pipelines"
+    "gcsOutputDirectory": "gs://apache-beam-testing-ml-examples/pipelines",
+    "parameters": {
+      "base_artifact_path": {
+        "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"
+      }
+    }
   }
 }

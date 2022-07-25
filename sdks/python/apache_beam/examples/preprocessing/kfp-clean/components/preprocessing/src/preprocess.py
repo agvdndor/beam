@@ -37,9 +37,6 @@ def parse_args():
         "--preprocessed-dataset-path", type=str,
         help="The target directory for the ingested dataset.")
     parser.add_argument(
-        "--timestamp", type=str,
-        help="timestamp as identifier for the pipeline.")
-    parser.add_argument(
         "--base-artifact-path", type=str,
         help="Source uri to ingest data from.")
     return parser.parse_args()
@@ -48,7 +45,6 @@ def parse_args():
 def preprocess_dataset(
     ingested_dataset_path: str,
     preprocessed_dataset_path: str,
-    timestamp: int,
     base_artifact_path: str):
     """Dummy data ingestion step that returns an uri
     to the data it has 'ingested' as jsonlines.
@@ -56,6 +52,7 @@ def preprocess_dataset(
     Args:
         data_ingestion_target (str): uri to the data that was scraped and 
         ingested by the component"""
+    timestamp = time.time()
 
     # the directory where the output file is created may or may not exists
     # so we have to create it.
@@ -106,7 +103,7 @@ def preprocess_dataset(
     # so we have to create it.
     Path(preprocessed_dataset_path).parent.mkdir(parents=True, exist_ok=True)
     with open(preprocessed_dataset_path, 'w') as f:
-        f.write(Path(target_path).parent)
+        f.write(target_path)
 
 
 class DownloadImageFromURL(beam.DoFn):
