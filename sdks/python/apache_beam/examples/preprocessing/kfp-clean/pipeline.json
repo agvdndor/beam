@@ -5,7 +5,7 @@
         "executorLabel": "exec-dummy-data-ingestion",
         "inputDefinitions": {
           "parameters": {
-            "base_data_path": {
+            "base_artifact_path": {
               "type": "STRING"
             },
             "timestamp": {
@@ -25,7 +25,7 @@
         "executorLabel": "exec-dummy-data-preprocessing",
         "inputDefinitions": {
           "parameters": {
-            "base_data_path": {
+            "base_artifact_path": {
               "type": "STRING"
             },
             "ingested_dataset_path": {
@@ -62,8 +62,8 @@
             "command": [
               "python3",
               "ingest.py",
-              "--base-data-path",
-              "{{$.inputs.parameters['base_data_path']}}",
+              "--base-artifact-path",
+              "{{$.inputs.parameters['base_artifact_path']}}",
               "--timestamp",
               "{{$.inputs.parameters['timestamp']}}",
               "--ingested-dataset-path",
@@ -81,8 +81,8 @@
               "{{$.inputs.parameters['ingested_dataset_path']}}",
               "--timestamp",
               "{{$.inputs.parameters['timestamp']}}",
-              "--base-data-path",
-              "{{$.inputs.parameters['base_data_path']}}",
+              "--base-artifact-path",
+              "{{$.inputs.parameters['base_artifact_path']}}",
               "--preprocessed-dataset-path",
               "{{$.outputs.parameters['preprocessed_dataset_path'].output_file}}"
             ],
@@ -124,7 +124,7 @@
             ],
             "inputs": {
               "parameters": {
-                "base_data_path": {
+                "base_artifact_path": {
                   "runtimeValue": {
                     "constantValue": {
                       "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"
@@ -156,7 +156,7 @@
             ],
             "inputs": {
               "parameters": {
-                "base_data_path": {
+                "base_artifact_path": {
                   "runtimeValue": {
                     "constantValue": {
                       "stringValue": "gs://apache-beam-testing-ml-examples/kfp-example"

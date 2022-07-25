@@ -7,7 +7,7 @@ inputs:
     - name: timestamp
       description: timestamp as id for the pipeline
       type: Integer
-    - name: base_data_path
+    - name: base_artifact_path
       description: base path to store data
       type: String
 outputs:
@@ -24,8 +24,8 @@ implementation:
             {inputValue: ingested_dataset_path},
             --timestamp,
             {inputValue: timestamp},
-            --base-data-path,
-            {inputValue: base_data_path},
+            --base-artifact-path,
+            {inputValue: base_artifact_path},
             --preprocessed-dataset-path,
             {outputPath: preprocessed_dataset_path}
         ]

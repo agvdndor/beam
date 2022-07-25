@@ -4,23 +4,22 @@ import argparse
 
 import google.cloud.aiplatform as aip
 
-
 PROJECT_ID = "apache-beam-testing"
 BUCKET_URI = "apache-beam-testing-ml-examples"
 LOCATION = "us-central1"
 PIPELINE_ROOT = "gs://apache-beam-testing-ml-examples/pipelines"
 
 
-# def parse_args():
-#     """Parse KFP arguments"""
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument(
-#         "--data-source-uri", type=str,
-#         help="The uri to ingest the data from.")
-#     parser.add_argument(
-#         "--train-test-split", type=float, default=0.8,
-#         help="Fractional part of the train dataset compared to the entire dataset.")
-#     return parser.parse_args()
+def parse_args():
+    """Parse KFP arguments"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--base-artifact-path", type=str,
+        help="Base path to store pipeline artifacts")
+    parser.add_argument(
+        "--train-test-split", type=float, default=0.8,
+        help="Fractional part of the train dataset compared to the entire dataset.")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ def parse_args():
         "--timestamp", type=str,
         help="timestamp as identifier for the pipeline.")
     parser.add_argument(
-        "--base-data-path", type=str,
+        "--base-artifact-path", type=str,
         help="Source uri to ingest data from.")
     return parser.parse_args()
 
@@ -26,7 +26,7 @@ def parse_args():
 def dummy_ingest_data(
     ingested_dataset_path: str,
     timestamp: int,
-    base_data_path: str):
+    base_artifact_path: str):
     """Dummy data ingestion step that returns an uri
     to the data it has 'ingested' as jsonlines.
 
@@ -34,7 +34,7 @@ def dummy_ingest_data(
         data_ingestion_target (str): uri to the data that was scraped and 
         ingested by the component"""
     # create directory to store the actual data
-    target_path = f"{base_data_path}/ingestion/ingested_dataset_{timestamp}.jsonl"
+    target_path = f"{base_artifact_path}/ingestion/ingested_dataset_{timestamp}.jsonl"
     target_path_gcsfuse = target_path.replace("gs://", "/gcs/")
     Path(target_path_gcsfuse).parent.mkdir(parents=True, exist_ok=True)
     with open(target_path_gcsfuse, 'w') as f:

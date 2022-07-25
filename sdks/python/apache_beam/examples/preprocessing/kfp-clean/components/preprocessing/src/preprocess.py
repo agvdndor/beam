@@ -40,9 +40,8 @@ def parse_args():
         "--timestamp", type=str,
         help="timestamp as identifier for the pipeline.")
     parser.add_argument(
-        "--base-data-path", type=str,
+        "--base-artifact-path", type=str,
         help="Source uri to ingest data from.")
-    return parser.parse_args()
     return parser.parse_args()
 
 
@@ -50,7 +49,7 @@ def preprocess_dataset(
     ingested_dataset_path: str,
     preprocessed_dataset_path: str,
     timestamp: int,
-    base_data_path: str):
+    base_artifact_path: str):
     """Dummy data ingestion step that returns an uri
     to the data it has 'ingested' as jsonlines.
 
@@ -75,10 +74,9 @@ def preprocess_dataset(
         region=LOCATION,
         requirements_file="/requirements.txt",
         save_main_session = True,
-        experiments = ["use_runner_v2"],
     )
 
-    target_path = f"{base_data_path}/preprocessing/preprocessed_dataset_{timestamp}"
+    target_path = f"{base_artifact_path}/preprocessing/preprocessed_dataset_{timestamp}"
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         (

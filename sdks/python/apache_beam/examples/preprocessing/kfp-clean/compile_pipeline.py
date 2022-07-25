@@ -32,23 +32,24 @@ PROJECT_ID = "apache-beam-testing"
 PROJECT_LOCATON = "us-central1"
 BUCKET_URI = "apache-beam-testing-ml-examples"
 DATAFLOW_STAGING_DIR = "gs://apache-beam-testing-ml-examples/dataflow_staging"
-BASE_DATA_PATH = "gs://apache-beam-testing-ml-examples/kfp-example"
+BASE_ARTIFACT_PATH = "gs://apache-beam-testing-ml-examples/kfp-example"
 
 @dsl.pipeline(
     pipeline_root=PIPELINE_ROOT,
     name="beam-preprocessing-kfp-example",
     description="Pipeline to show an apache beam preprocessing example in KFP"
 )
-def pipeline():
+def pipeline(base_artifact_path: str):
     timestamp_generator_task = GenerateTimeStampOp()
+
     ingest_data_task = DataIngestOp(
         timestamp=timestamp_generator_task.output,
-        base_data_path=BASE_DATA_PATH
+        base_artifact_path=base_artifact_path
     )
     data_preprocessing_task = DataPreprocessingOp(
         ingested_dataset_path=ingest_data_task.outputs["ingested_dataset_path"],
         timestamp=timestamp_generator_task.output,
-        base_data_path=BASE_DATA_PATH
+        base_artifact_path=base_artifact_path
     )
 
 

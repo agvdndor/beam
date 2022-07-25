@@ -1,19 +1,22 @@
-name: dummy data ingestion
-description: Component that mimicks scraping data from the web and outputs it to a jsonlines format file
+name: model training
+description: Train a pytorch model
 inputs:
     - name: base_artifact_path
       description: base path to store data
+      type: String
+    - name: preprocessed_dataset_path
+      description: path to the preprocessed dataset
       type: String
     - name: timestamp
       description: timestamp as id for the pipeline
       type: Integer
 outputs:
-    - name: ingested_dataset_path
-      description: target uri for the ingested dataset
+    - name: trained_model
+      description: trained model file
       type: String
 implementation:
     container:
-        image: us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/ingestion:latest
+        image: us-central1-docker.pkg.dev/apache-beam-testing/kfp-components-preprocessing/train:latest
         command: [
             python3,
             ingest.py,
@@ -21,6 +24,6 @@ implementation:
             {inputValue: base_artifact_path},
             --timestamp,
             {inputValue: timestamp},
-            --ingested-dataset-path,
-            {outputPath: ingested_dataset_path}
+            --preprocessed-dataset-path,
+            {outputPath: preprocessed_dataset_path}
         ]
